@@ -1,0 +1,63 @@
+@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap");
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    @media (prefers-color-scheme: light) {
+      --color-background: #ffffff;
+      --color-text: #000000;
+      --color-gray: #dbdbdb;
+      --color-darkgray: #737373;
+      --color-blue: #0095f6;
+      --color-purple: #4d00ff;
+      --color-error: #ff0000;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      --color-background: #000000;
+      --color-text: #fafafa;
+      --color-gray: #262626;
+      --color-darkgray: #8e8e8e;
+      --color-blue: #0095f6;
+      --color-purple: #4d00ff;
+      --color-error: #ff0000;
+    }
+  }
+  /* Feature thema switcher */
+  [data-theme="light"] {
+    --color-background: #ffffff;
+    --color-text: #000000;
+    --color-gray: #dbdbdb;
+    --color-darkgray: #737373;
+    --color-blue: #0095f6;
+    --color-purple: #4d00ff;
+    --color-error: #ff0000;
+  }
+  [data-theme="dark"] {
+    --color-background: #000000;
+    --color-text: #fafafa;
+    --color-gray: #262626;
+    --color-darkgray: #8e8e8e;
+    --color-blue: #0095f6;
+    --color-purple: #4d00ff;
+    --color-error: #ff0000;
+  }
+
+  html {
+    font-family: "Roboto", system-ui, sans-serif;
+    font-weight: 400;
+  }
+}
+
+@theme {
+  --color-background: var(--color-background);
+  --color-text: var(--color-text);
+  --color-gray: var(--color-gray);
+  --color-darkgray: var(--color-darkgray);
+  --color-blue: var(--color-blue);
+  --color-purple: var(--color-purple);
+  --color-error: var(--color-error);
+
+  --font-sans: "Roboto", system-ui, sans-serif;
+  --default-font-weight: 400;
+}
