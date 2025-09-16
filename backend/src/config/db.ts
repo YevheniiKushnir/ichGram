@@ -1,15 +1,13 @@
 import mongoose from "mongoose";
+import { env } from "./env";
 
 const connectDB = async (): Promise<void> => {
-  const mongoUrl = process.env.MONGO_URL;
-  const dbName = process.env.MONGO_DB_NAME;
-
-  if (!mongoUrl) {
+  if (!env.MONGO_URL) {
     throw new Error("MONGO_URL is not defined in environment variables");
   }
 
-  await mongoose.connect(mongoUrl, {
-    dbName: dbName || "instagram_clone",
+  await mongoose.connect(env.MONGO_URL, {
+    dbName: env.MONGO_DB_NAME,
   });
 };
 

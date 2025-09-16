@@ -1,8 +1,8 @@
-import { Router } from 'express';
-import { getSignature } from '../controllers/uploadController';
+import { Router } from "express";
+import { generateSignature } from "../controllers/uploadController";
 
 const router = Router();
 
-router.get('/signature', getSignature);
+router.get("/signature", generateSignature);
 
 export default router;

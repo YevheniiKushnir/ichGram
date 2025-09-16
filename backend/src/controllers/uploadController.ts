@@ -1,6 +1,12 @@
 import { Request, Response } from 'express';
-import { generateSignature } from '../services/сloudinary';
+import { CloudinaryService } from '../services/сloudinaryService';
 
-export const getSignature = (req: Request, res: Response) => {
-  generateSignature(req, res);
+export const generateSignature = (req: Request, res: Response) => {
+  try {
+    const data = CloudinaryService.generateSignature();
+    res.json(data);
+  } catch (error) {
+    console.error("Cloudinary signature error:", error);
+    res.status(500).json({ message: "Error generating signature" });
+  }
 };

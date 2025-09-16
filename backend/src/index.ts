@@ -1,27 +1,27 @@
-import "../config/dotenv.js";
+import "./config/env";
 import express from "express";
 import cors from "cors";
-import connectDB from "./db/index";
-import serverErrorMiddleware from "./middleware/serverError";
-import notFoundMiddleware from "./middleware/notFound";
-import uploadRoutes from './routes/uploadRoutes';
+import connectDB from "./config/db";
+
+import { env } from "./config/env";
+import { configureCors } from "./config/cors";
+
+import errorMiddleware from "./middleware/errorMiddleware";
+
+import uploadRoutes from "./routes/uploadRoutes";
+import authRoutes from "./routes/authRoutes";
 
 const app = express();
 
-app.use(
-  cors({
-    origin: process.env.FRONTEND_URL,
-    credentials: true,
-  })
-);
+app.use(cors(configureCors()));
 app.use(express.json());
 
-app.use('/api/upload-img', uploadRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/upload", uploadRoutes);
 
-app.use(notFoundMiddleware);
-app.use(serverErrorMiddleware);
+app.use(errorMiddleware);
 
-const PORT = process.env.PORT || 3001;
+const PORT = env.PORT;
 
 const startServer = async () => {
   try {
