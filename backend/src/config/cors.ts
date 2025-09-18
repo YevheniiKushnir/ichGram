@@ -12,11 +12,9 @@ export const configureCors = (): CorsOptions => {
   }
 
   return {
-    origin: [clientHost, "http://localhost:5173"],
+    origin: clientHost,
     methods: ["GET", "POST", "DELETE", "PUT"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    exposedHeaders: ["Set-Cookie"],
-    preflightContinue: false,
+    allowedHeaders: ["Content-Type"],
     credentials: true,
   };
 };

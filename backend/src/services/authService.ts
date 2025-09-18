@@ -38,8 +38,8 @@ export class AuthService {
   static async register(
     userData: RegisterData
   ): Promise<{ user: IUser; refreshToken: string }> {
-    this.validatePassword(userData.password);
     await this.checkUniqueFields(userData.email, userData.username);
+    this.validatePassword(userData.password);
 
     const hashedPassword = await bcrypt.hash(userData.password, 12);
 

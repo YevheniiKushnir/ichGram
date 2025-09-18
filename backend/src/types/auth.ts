@@ -1,18 +1,19 @@
-export interface AuthResponse {
+import { Request } from "express";
+import { UserShort } from "./user";
+
+export interface AuthRequest extends Request {
   user: {
-    _id: string;
-    username: string;
-    email: string;
-    fullName: string;
-    avatarUrl?: string;
+    userId: string;
   };
-  accessToken: string;
-  refreshToken: string;
+}
+
+export interface AuthResponse {
+  user: UserShort & { email: string };
 }
 
 export interface LoginCredentials {
   email?: string;
-  username?: string; 
+  username?: string;
   password: string;
   deviceId?: string;
   userAgent?: string;

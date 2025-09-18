@@ -2,8 +2,14 @@ import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { env } from "../config/env";
 import { AuthService } from "../services/authService";
-import { LoginCredentials, RegisterData, AuthResponse } from "../types/auth";
-import { AuthRequest } from "../types/express";
+import {
+  LoginCredentials,
+  RegisterData,
+  AuthResponse,
+  AuthRequest,
+} from "../types/auth";
+import { setAuthCookies, clearAuthCookies } from "../utils/cookie";
+import { getUserId } from "../utils/checkAuth";
 
 export class AuthController {
   static async register(req: Request, res: Response): Promise<void> {
@@ -22,6 +28,7 @@ export class AuthController {
         env.JWT_SECRET!,
         { expiresIn: "15m" }
       );
+      setAuthCookies(res, accessToken, refreshToken);
 
       const response: AuthResponse = {
         user: {
@@ -31,8 +38,6 @@ export class AuthController {
           fullName: user.fullName,
           avatarUrl: user.avatarUrl,
         },
-        accessToken,
-        refreshToken,
       };
 
       res.status(201).json(response);
@@ -66,6 +71,8 @@ export class AuthController {
         { expiresIn: "15m" }
       );
 
+      setAuthCookies(res, accessToken, refreshToken);
+
       const response: AuthResponse = {
         user: {
           _id: user._id.toString(),
@@ -74,8 +81,6 @@ export class AuthController {
           fullName: user.fullName,
           avatarUrl: user.avatarUrl,
         },
-        accessToken,
-        refreshToken,
       };
 
       res.json(response);
@@ -87,7 +92,12 @@ export class AuthController {
 
   static async refreshToken(req: Request, res: Response): Promise<void> {
     try {
-      const { refreshToken } = req.body;
+      const refreshToken = req.cookies.refreshToken;
+
+      if (!refreshToken) {
+        res.status(401).json({ error: "Refresh token required" });
+        return;
+      }
 
       const userId = await AuthService.validateRefreshToken(refreshToken);
       if (!userId) {
@@ -101,10 +111,9 @@ export class AuthController {
 
       const newRefreshToken = await AuthService.createRefreshToken(userId);
 
-      res.json({
-        accessToken: newAccessToken,
-        refreshToken: newRefreshToken,
-      });
+      setAuthCookies(res, newAccessToken, newRefreshToken);
+
+      res.json({ message: "Tokens refreshed" });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Unknown error";
       res.status(401).json({ error: message });
@@ -113,8 +122,14 @@ export class AuthController {
 
   static async logout(req: Request, res: Response): Promise<void> {
     try {
-      const { refreshToken } = req.body;
-      await AuthService.logout(refreshToken);
+      const refreshToken = req.cookies.refreshToken;
+
+      if (refreshToken) {
+        await AuthService.logout(refreshToken);
+      }
+
+      clearAuthCookies(res);
+
       res.json({ message: "Logged out successfully" });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Unknown error";
@@ -123,14 +138,16 @@ export class AuthController {
   }
   static async logoutAll(req: Request, res: Response): Promise<void> {
     try {
-      const userId = (req as AuthRequest).user.userId; // FROM authMiddleware
-
+      const userId = getUserId(req as AuthRequest);
       if (!userId) {
         res.status(401).json({ error: "Authentication required" });
         return;
       }
 
+      clearAuthCookies(res);
+
       await AuthService.logoutAllDevices(userId);
+
       res.json({ message: "Logged out from all devices" });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Unknown error";

@@ -1,5 +1,6 @@
 import "./config/env";
 import express from "express";
+import cookieParser from "cookie-parser";
 import cors from "cors";
 import connectDB from "./config/db";
 
@@ -10,13 +11,16 @@ import errorMiddleware from "./middleware/errorMiddleware";
 
 import uploadRoutes from "./routes/uploadRoutes";
 import authRoutes from "./routes/authRoutes";
+import userRoutes from "./routes/userRoutes";
 
 const app = express();
 
 app.use(cors(configureCors()));
 app.use(express.json());
+app.use(cookieParser());
 
 app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/upload", uploadRoutes);
 
 app.use(errorMiddleware);
