@@ -2,156 +2,114 @@ import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { env } from "../config/env";
 import { AuthService } from "../services/authService";
-import {
-  LoginCredentials,
-  RegisterData,
-  AuthResponse,
-  AuthRequest,
-} from "../types/auth";
-import { setAuthCookies, clearAuthCookies } from "../utils/cookie";
-import { getUserId } from "../utils/checkAuth";
+import { LoginCredentials, RegisterData, AuthResponse } from "../types/auth";
+import { Cookie } from "../utils/cookie";
+import { Types } from "mongoose";
+import { AuthUtils } from "../utils/authUtils";
 
 export class AuthController {
   static async register(req: Request, res: Response): Promise<void> {
-    try {
-      const { username, email, password, fullName }: RegisterData = req.body;
+    const { username, email, password, fullName }: RegisterData = req.body;
 
-      const { user, refreshToken } = await AuthService.register({
-        username,
-        email,
-        password,
-        fullName,
-      });
+    const { user, refreshToken } = await AuthService.register({
+      username,
+      email,
+      password,
+      fullName,
+    });
 
-      const accessToken = jwt.sign(
-        { userId: user._id.toString() },
-        env.JWT_SECRET!,
-        { expiresIn: "15m" }
-      );
-      setAuthCookies(res, accessToken, refreshToken);
+    const accessToken = jwt.sign(
+      { userId: user._id.toString() },
+      env.JWT_SECRET!,
+      { expiresIn: env.ACCESS_TOKEN_EXPIRES_IN }
+    );
+    Cookie.setAuthCookies(res, accessToken, refreshToken);
 
-      const response: AuthResponse = {
-        user: {
-          _id: user._id.toString(),
-          username: user.username,
-          email: user.email,
-          fullName: user.fullName,
-          avatarUrl: user.avatarUrl,
-        },
-      };
+    const response: AuthResponse = {
+      user: {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        fullName: user.fullName,
+        avatarUrl: user.avatarUrl,
+      },
+    };
 
-      res.status(201).json(response);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      res.status(400).json({ error: message });
-    }
+    res.status(201).json(response);
   }
 
   static async login(req: Request, res: Response): Promise<void> {
-    try {
-      const {
-        email,
-        username,
-        password,
-        deviceId,
-        userAgent,
-      }: LoginCredentials = req.body;
+    const { email, username, password, deviceId, userAgent }: LoginCredentials =
+      req.body;
 
-      const { user, refreshToken } = await AuthService.login({
-        email,
-        username,
-        password,
-        deviceId,
-        userAgent,
-      });
+    const { user, refreshToken } = await AuthService.login({
+      email,
+      username,
+      password,
+      deviceId,
+      userAgent,
+    });
 
-      const accessToken = jwt.sign(
-        { userId: user._id.toString() },
-        env.JWT_SECRET!,
-        { expiresIn: "15m" }
-      );
+    const accessToken = jwt.sign(
+      { userId: user._id.toString() },
+      env.JWT_SECRET!,
+      { expiresIn: env.ACCESS_TOKEN_EXPIRES_IN }
+    );
 
-      setAuthCookies(res, accessToken, refreshToken);
+    Cookie.setAuthCookies(res, accessToken, refreshToken);
 
-      const response: AuthResponse = {
-        user: {
-          _id: user._id.toString(),
-          username: user.username,
-          email: user.email,
-          fullName: user.fullName,
-          avatarUrl: user.avatarUrl,
-        },
-      };
+    const response: AuthResponse = {
+      user: {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        fullName: user.fullName,
+        avatarUrl: user.avatarUrl,
+      },
+    };
 
-      res.json(response);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      res.status(401).json({ error: message });
-    }
+    res.json(response);
   }
 
   static async refreshToken(req: Request, res: Response): Promise<void> {
-    try {
-      const refreshToken = req.cookies.refreshToken;
+    const refreshToken = req.cookies.refreshToken;
 
-      if (!refreshToken) {
-        res.status(401).json({ error: "Refresh token required" });
-        return;
+    const userId = await AuthService.validateRefreshToken(refreshToken);
+
+    const newAccessToken = jwt.sign(
+      { userId: userId.toString() },
+      env.JWT_SECRET!,
+      {
+        expiresIn: env.ACCESS_TOKEN_EXPIRES_IN,
       }
+    );
 
-      const userId = await AuthService.validateRefreshToken(refreshToken);
-      if (!userId) {
-        res.status(401).json({ error: "Invalid refresh token" });
-        return;
-      }
+    const newRefreshToken = await AuthService.createRefreshToken(userId);
 
-      const newAccessToken = jwt.sign({ userId }, env.JWT_SECRET!, {
-        expiresIn: "15m",
-      });
+    Cookie.setAuthCookies(res, newAccessToken, newRefreshToken);
 
-      const newRefreshToken = await AuthService.createRefreshToken(userId);
-
-      setAuthCookies(res, newAccessToken, newRefreshToken);
-
-      res.json({ message: "Tokens refreshed" });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      res.status(401).json({ error: message });
-    }
+    res.json({ message: "Tokens refreshed" });
   }
 
   static async logout(req: Request, res: Response): Promise<void> {
-    try {
-      const refreshToken = req.cookies.refreshToken;
+    const refreshToken = req.cookies?.refreshToken;
 
-      if (refreshToken) {
-        await AuthService.logout(refreshToken);
-      }
-
-      clearAuthCookies(res);
-
-      res.json({ message: "Logged out successfully" });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      res.status(400).json({ error: message });
+    if (refreshToken) {
+      await AuthService.logout(refreshToken);
     }
+
+    Cookie.clearAuthCookies(res);
+
+    res.json({ message: "Logged out successfully" });
   }
+
   static async logoutAll(req: Request, res: Response): Promise<void> {
-    try {
-      const userId = getUserId(req as AuthRequest);
-      if (!userId) {
-        res.status(401).json({ error: "Authentication required" });
-        return;
-      }
+    const userId = AuthUtils.getUserId(req);
 
-      clearAuthCookies(res);
+    Cookie.clearAuthCookies(res);
 
-      await AuthService.logoutAllDevices(userId);
+    await AuthService.logoutAllDevices(new Types.ObjectId(userId));
 
-      res.json({ message: "Logged out from all devices" });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      res.status(400).json({ error: message });
-    }
+    res.json({ message: "Logged out from all devices" });
   }
 }

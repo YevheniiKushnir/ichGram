@@ -14,6 +14,10 @@ export interface IPost extends Document {
   mentions: Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
+
+  likeCount: number;
+  commentCount: number;
+  saveCount: number;
 }
 
 const postSchema = new Schema<IPost>(

@@ -1,5 +1,7 @@
+import { Types } from "mongoose";
+
 export interface UserProfile {
-  _id: string;
+  _id: Types.ObjectId;
   username: string;
   fullName: string;
   email: string;
@@ -7,18 +9,20 @@ export interface UserProfile {
   bio?: string;
   website?: string;
   isPrivate: boolean;
-  followerCount: number;
-  followingCount: number;
-  postCount: number;
+
   isFollowing?: boolean;
   followers?: UserShort[];
   following?: UserShort[];
   createdAt: Date;
   updatedAt: Date;
+
+  followerCount: number;
+  followingCount: number;
+  postCount: number;
 }
 
 export interface UserShort {
-  _id: string;
+  _id: Types.ObjectId;
   username: string;
   fullName: string;
   avatarUrl?: string;
@@ -35,8 +39,8 @@ export interface UserProfileData {
 
 //follow/unfollow
 export interface FollowAction {
-  followerId: string;
-  followingId: string;
+  followerId: Types.ObjectId;
+  followingId: Types.ObjectId;
 }
 
 export interface PaginationParamsQuery {
@@ -45,7 +49,7 @@ export interface PaginationParamsQuery {
 }
 
 export interface UserFeedParams {
-  userId: string;
+  userId: Types.ObjectId;
   page?: number;
   limit?: number;
 }

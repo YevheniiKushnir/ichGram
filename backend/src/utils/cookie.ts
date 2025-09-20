@@ -1,31 +1,38 @@
 import { Response } from "express";
 import { env } from "../config/env";
+import ms, { StringValue } from "ms";
 
-const isProd: boolean = env.NODE_ENV === "production";
-const maxAgeAccessToken: number = 15 * 60 * 1000; //15m
-const maxAgeRefreshToken: number = 7 * 24 * 60 * 60 * 1000; //7d
+export class Cookie {
+  private static readonly isProd: boolean = env.NODE_ENV === "production";
+  private static readonly maxAgeAccessToken = ms(
+    env.ACCESS_TOKEN_EXPIRES_IN as StringValue
+  );
+  private static readonly maxAgeRefreshToken = ms(
+    env.REFRESH_TOKEN_EXPIRES_IN as StringValue
+  );
 
-export const setAuthCookies = (
-  res: Response,
-  accessToken: string,
-  refreshToken: string,
-) => {
-  res.cookie("accessToken", accessToken, {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: "strict",
-    maxAge: maxAgeAccessToken,
-  });
+  static setAuthCookies(
+    res: Response,
+    accessToken: string,
+    refreshToken: string
+  ): void {
+    res.cookie("accessToken", accessToken, {
+      httpOnly: true,
+      secure: this.isProd,
+      sameSite: "strict",
+      maxAge: this.maxAgeAccessToken,
+    });
 
-  res.cookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: "strict",
-    maxAge: maxAgeRefreshToken,
-  });
-};
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: this.isProd,
+      sameSite: "strict",
+      maxAge: this.maxAgeRefreshToken,
+    });
+  }
 
-export const clearAuthCookies = (res: Response) => {
-  res.clearCookie("accessToken");
-  res.clearCookie("refreshToken");
-};
+  static clearAuthCookies(res: Response): void {
+    res.clearCookie("accessToken");
+    res.clearCookie("refreshToken");
+  }
+}

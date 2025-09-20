@@ -9,11 +9,12 @@ import {
   UserFeedParams,
 } from "../types/user";
 import { PostWithAuthor } from "../types/post";
+import { AppError } from "../utils/AppError";
 
 export class UserService {
   static async getProfile(
-    userId: string,
-    requestedById?: string
+    userId: Types.ObjectId,
+    requestedById?: Types.ObjectId
   ): Promise<UserProfile> {
     const user = await User.findById(userId)
       .select("-password")
@@ -23,11 +24,11 @@ export class UserService {
       ]);
 
     if (!user) {
-      throw new Error("User not found");
+      throw new AppError("User not found", 404);
     }
 
     const profile: UserProfile = {
-      _id: user._id.toString(),
+      _id: user._id,
       username: user.username,
       fullName: user.fullName,
       email: user.email,
@@ -35,17 +36,17 @@ export class UserService {
       bio: user.bio,
       website: user.website,
       isPrivate: user.isPrivate,
-      followerCount: user.followers.length, // virtual followerCount
-      followingCount: user.following.length, // virtual followingCount
-      postCount: user.posts.length, // virtual postCount
+      followerCount: user.followerCount,
+      followingCount: user.followingCount,
+      postCount: user.postCount,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
 
     // add isFollowind
     if (requestedById) {
-      const isFollowing = user.followers.some(
-        (follower: UserShort) => follower._id === requestedById
+      const isFollowing = user.followers.some((follower: UserShort) =>
+        follower._id.equals(requestedById)
       );
       profile.isFollowing = isFollowing;
     }
@@ -54,7 +55,7 @@ export class UserService {
   }
 
   static async searchUsers(
-    query: string,
+    query: string = "",
     limit: number = 10
   ): Promise<UserShort[]> {
     const users = await User.find({
@@ -67,7 +68,7 @@ export class UserService {
       .limit(limit);
 
     return users.map((user) => ({
-      _id: user._id.toString(),
+      _id: user._id,
       username: user.username,
       fullName: user.fullName,
       avatarUrl: user.avatarUrl,
@@ -79,8 +80,8 @@ export class UserService {
     followerId,
     followingId,
   }: FollowAction): Promise<void> {
-    if (followerId === followingId) {
-      throw new Error("Cannot follow yourself");
+    if (followerId.equals(followingId)) {
+      throw new AppError("Cannot follow yourself", 403);
     }
 
     const [follower, following] = await Promise.all([
@@ -89,19 +90,19 @@ export class UserService {
     ]);
 
     if (!follower || !following) {
-      throw new Error("User not found");
+      throw new AppError("User not found", 404);
     }
 
-    const isAlreadyFollowing = follower.following.some(
-      (id: Types.ObjectId) => id.toString() === followingId
+    const isAlreadyFollowing = follower.following.some((id) =>
+      id.equals(followingId)
     );
 
     if (isAlreadyFollowing) {
-      throw new Error("Already following this user");
+      throw new AppError("Already following this user", 403);
     }
 
-    follower.following.push(new Types.ObjectId(followingId));
-    following.followers.push(new Types.ObjectId(followerId));
+    follower.following.push(followingId);
+    following.followers.push(followerId);
 
     await Promise.all([follower.save(), following.save()]);
   }
@@ -116,15 +117,14 @@ export class UserService {
     ]);
 
     if (!follower || !following) {
-      throw new Error("User not found");
+      throw new AppError("User not found", 404);
     }
-
     follower.following = follower.following.filter(
-      (id: Types.ObjectId) => id.toString() !== followingId
+      (id) => !id.equals(followingId)
     );
 
     following.followers = following.followers.filter(
-      (id: Types.ObjectId) => id.toString() !== followerId
+      (id) => !id.equals(followerId)
     );
 
     await Promise.all([follower.save(), following.save()]);
@@ -147,11 +147,11 @@ export class UserService {
     });
 
     if (!user) {
-      throw new Error("User not found");
+      throw new AppError("User not found", 404);
     }
 
-    return user.followers.map((follower: UserShort) => ({
-      _id: follower._id.toString(),
+    return user.followers.map((follower) => ({
+      _id: follower._id,
       username: follower.username,
       fullName: follower.fullName,
       avatarUrl: follower.avatarUrl,
@@ -176,11 +176,11 @@ export class UserService {
     });
 
     if (!user) {
-      throw new Error("User not found");
+      throw new AppError("User not found", 404);
     }
 
     return user.following.map((following: UserShort) => ({
-      _id: following._id.toString(),
+      _id: following._id,
       username: following.username,
       fullName: following.fullName,
       avatarUrl: following.avatarUrl,
@@ -189,7 +189,7 @@ export class UserService {
   }
 
   static async updateProfile(
-    userId: string,
+    userId: Types.ObjectId,
     updateData: UserProfileData
   ): Promise<UserProfile> {
     const { fullName, bio, website, avatarUrl, isPrivate } = updateData;
@@ -200,11 +200,11 @@ export class UserService {
     ).select("-password");
 
     if (!user) {
-      throw new Error("User not found");
+      throw new AppError("User not found", 404);
     }
 
     return {
-      _id: user._id.toString(),
+      _id: user._id,
       username: user.username,
       fullName: user.fullName,
       email: user.email,
@@ -212,9 +212,9 @@ export class UserService {
       bio: user.bio,
       website: user.website,
       isPrivate: user.isPrivate,
-      followerCount: user.followers.length,
-      followingCount: user.following.length,
-      postCount: user.posts.length,
+      followerCount: user.followerCount,
+      followingCount: user.followingCount,
+      postCount: user.postCount,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
@@ -230,7 +230,9 @@ export class UserService {
       following: UserShort[];
     }>("following");
 
-    if (!user) throw new Error("User not found");
+    if (!user) {
+      throw new AppError("User not found", 404);
+    }
 
     const followingIds = user.following.map((f) => f._id);
 
@@ -240,6 +242,17 @@ export class UserService {
       .skip((page - 1) * limit)
       .limit(limit);
 
-    return posts as PostWithAuthor[];
+    return posts.map((post) => {
+      return {
+        ...post,
+        _id: post._id,
+        author: post.author,
+        likeCount: post.likeCount,
+        commentCount: post.commentCount,
+        saveCount: post.saveCount,
+        isLiked: post.likes.some((like) => like.equals(userId)),
+        isSaved: post.saves.some((save) => save.equals(userId)),
+      };
+    });
   }
 }

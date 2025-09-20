@@ -1,23 +1,27 @@
 import { User, IUser } from "../models/User";
 import { RefreshToken } from "../models/RefreshToken";
 import bcrypt from "bcryptjs";
+import ms from "ms";
+import { env } from "../config/env";
 import { randomBytes } from "crypto";
 import { Types } from "mongoose";
 import { LoginCredentials, RegisterData } from "../types/auth";
+import { AppError } from "../utils/AppError";
 
 export class AuthService {
   private static readonly PASSWORD_REGEX =
     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>])[A-Za-z\d!@#$%^&*(),.?":{}|<>]{8,}$/;
 
-  private static validatePassword(password: string): void {
+  static validatePassword(password: string): void {
     if (!this.PASSWORD_REGEX.test(password)) {
-      throw new Error(
-        "Password must contain at least 8 characters including uppercase, lowercase, number, and special character"
+      throw new AppError(
+        "Password must contain at least 8 characters including uppercase, lowercase, number, and special character",
+        400
       );
     }
   }
 
-  private static async checkUniqueFields(
+  static async checkUniqueFields(
     email: string,
     username: string
   ): Promise<void> {
@@ -27,10 +31,10 @@ export class AuthService {
 
     if (existingUser) {
       if (existingUser.email === email) {
-        throw new Error("Email already exists");
+        throw new AppError("Email already exists", 400);
       }
       if (existingUser.username === username) {
-        throw new Error("Username already exists");
+        throw new AppError("Username already exists", 400);
       }
     }
   }
@@ -48,7 +52,7 @@ export class AuthService {
       password: hashedPassword,
     });
 
-    const refreshToken = await this.createRefreshToken(user._id.toString());
+    const refreshToken = await this.createRefreshToken(user._id);
     return { user, refreshToken };
   }
 
@@ -62,16 +66,16 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new Error("User not found");
+      throw new AppError("User not found", 404);
     }
 
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
-      throw new Error("Invalid password");
+      throw new AppError("Invalid password", 400);
     }
 
     const refreshToken = await this.createRefreshToken(
-      user._id.toString(),
+      user._id,
       deviceId,
       userAgent
     );
@@ -80,15 +84,15 @@ export class AuthService {
   }
 
   static async createRefreshToken(
-    userId: string,
+    userId: Types.ObjectId,
     deviceId?: string,
     userAgent?: string
   ): Promise<string> {
     const token = randomBytes(40).toString("hex");
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    const expiresAt = new Date(Date.now() + ms(env.REFRESH_TOKEN_EXPIRES_IN));
 
     await RefreshToken.create({
-      userId: new Types.ObjectId(userId),
+      userId,
       token,
       deviceId,
       userAgent,
@@ -98,19 +102,22 @@ export class AuthService {
     return token;
   }
 
-  static async validateRefreshToken(token: string): Promise<string | null> {
+  static async validateRefreshToken(token: string): Promise<Types.ObjectId> {
+    if (!token) {
+      throw new AppError("Refresh token required", 401);
+    }
     const refreshToken = await RefreshToken.findOne({ token });
     if (!refreshToken || refreshToken.expiresAt < new Date()) {
-      return null;
+      throw new AppError("Invalid refresh token", 401);
     }
-    return refreshToken.userId.toString();
+    return refreshToken.userId;
   }
 
   static async logout(token: string): Promise<void> {
     await RefreshToken.deleteOne({ token });
   }
 
-  static async logoutAllDevices(userId: string): Promise<void> {
-    await RefreshToken.deleteMany({ userId: new Types.ObjectId(userId) });
+  static async logoutAllDevices(userId: Types.ObjectId): Promise<void> {
+    await RefreshToken.deleteMany({ userId });
   }
 }

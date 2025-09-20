@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import { StringValue } from "ms";
 
 dotenv.config();
 
@@ -12,12 +13,15 @@ export const env = {
   FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:5173",
 
   JWT_SECRET: process.env.JWT_SECRET || "fallback_dev_secret",
-  JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || "fallback_dev_refresh_secret",
+  JWT_REFRESH_SECRET:
+    process.env.JWT_REFRESH_SECRET || "fallback_dev_refresh_secret",
+  ACCESS_TOKEN_EXPIRES_IN: "15m" as StringValue, //format jwt expires_in
+  REFRESH_TOKEN_EXPIRES_IN: "7d" as StringValue, //format jwt expires_in
 
   CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
   CLOUDINARY_UPLOAD_PRESET: process.env.CLOUDINARY_UPLOAD_PRESET,
 
-  CLIENT_HOST:"",
+  CLIENT_HOST: "",
 };

@@ -19,6 +19,10 @@ export interface IUser extends Document {
   notifications: Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
+
+  followerCount: number;
+  followingCount: number;
+  postCount: number;
 }
 
 const userSchema = new Schema<IUser>(
