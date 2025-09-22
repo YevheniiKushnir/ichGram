@@ -9,6 +9,7 @@ export interface IComment extends Document {
   parentComment?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
+  likeCount: number;
 }
 
 const commentSchema = new Schema<IComment>(

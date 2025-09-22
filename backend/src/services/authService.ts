@@ -1,4 +1,5 @@
 import { User, IUser } from "../models/User";
+import { ResetToken } from "../models/ResetToken";
 import { RefreshToken } from "../models/RefreshToken";
 import bcrypt from "bcryptjs";
 import ms from "ms";
@@ -7,7 +8,7 @@ import { randomBytes } from "crypto";
 import { Types } from "mongoose";
 import { LoginCredentials, RegisterData } from "../types/auth";
 import { AppError } from "../utils/AppError";
-
+import { emailService } from "./emailService";
 export class AuthService {
   private static readonly PASSWORD_REGEX =
     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>])[A-Za-z\d!@#$%^&*(),.?":{}|<>]{8,}$/;
@@ -119,5 +120,80 @@ export class AuthService {
 
   static async logoutAllDevices(userId: Types.ObjectId): Promise<void> {
     await RefreshToken.deleteMany({ userId });
+  }
+
+  static async requestPasswordReset(emailOrUsername: string): Promise<void> {
+    const user = await User.findOne({
+      $or: [{ email: emailOrUsername }, { username: emailOrUsername }],
+    });
+
+    if (!user) {
+      // For security reasons, we do not disclose that the user was not found.
+      return;
+    }
+
+    const token = randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + ms(env.RESET_TOKEN_EXPIRES_IN));
+
+    await ResetToken.create({
+      userId: user._id,
+      token,
+      expiresAt,
+    });
+
+    await emailService.sendPasswordResetEmail(user.email, token);
+  }
+
+  static async resetPasswordWithToken(
+    token: string,
+    newPassword: string
+  ): Promise<void> {
+    this.validatePassword(newPassword);
+
+    const resetToken = await ResetToken.findOne({ token }).populate("userId");
+
+    if (!resetToken || resetToken.expiresAt < new Date()) {
+      throw new AppError("Invalid or expired reset token", 400);
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+    await User.findByIdAndUpdate(resetToken.userId, {
+      password: hashedPassword,
+    });
+
+    //  Delete the used token
+    await ResetToken.deleteOne({ _id: resetToken._id });
+
+    await this.logoutAllDevices(resetToken.userId._id);
+  }
+
+  static async changePassword(
+    userId: Types.ObjectId,
+    currentPassword: string,
+    newPassword: string
+  ): Promise<void> {
+    this.validatePassword(newPassword);
+
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new AppError("User not found", 404);
+    }
+
+    const isValidPassword = await bcrypt.compare(
+      currentPassword,
+      user.password
+    );
+    if (!isValidPassword) {
+      throw new AppError("Current password is incorrect", 400);
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+    await User.findByIdAndUpdate(userId, {
+      password: hashedPassword,
+    });
+
+    await this.logoutAllDevices(userId);
   }
 }

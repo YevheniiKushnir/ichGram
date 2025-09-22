@@ -112,4 +112,33 @@ export class AuthController {
 
     res.json({ message: "Logged out from all devices" });
   }
+
+  static async requestPasswordReset(
+    req: Request,
+    res: Response
+  ): Promise<void> {
+    const { emailOrUsername } = req.body;
+
+    await AuthService.requestPasswordReset(emailOrUsername);
+
+    // We always deliver success for safety
+    res.json({ message: "If the email exists, a reset link has been sent" });
+  }
+
+  static async resetPassword(req: Request, res: Response): Promise<void> {
+    const { token, newPassword } = req.body;
+
+    await AuthService.resetPasswordWithToken(token, newPassword);
+
+    res.json({ message: "Password reset successfully" });
+  }
+
+  static async changePassword(req: Request, res: Response): Promise<void> {
+    const { currentPassword, newPassword } = req.body;
+    const userId = AuthUtils.getUserId(req);
+
+    await AuthService.changePassword(userId, currentPassword, newPassword);
+
+    res.json({ message: "Password changed successfully" });
+  }
 }

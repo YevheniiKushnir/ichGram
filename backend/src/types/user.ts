@@ -1,24 +1,14 @@
 import { Types } from "mongoose";
+import { IUser } from "../models/User";
 
-export interface UserProfile {
-  _id: Types.ObjectId;
-  username: string;
-  fullName: string;
-  email: string;
-  avatarUrl?: string;
-  bio?: string;
-  website?: string;
-  isPrivate: boolean;
+export interface PopulatedUser
+  extends Omit<IUser, "password" | "followers" | "following"> {
+  followers: UserShort[];
+  following: UserShort[];
+}
 
+export interface UserProfile extends PopulatedUser {
   isFollowing?: boolean;
-  followers?: UserShort[];
-  following?: UserShort[];
-  createdAt: Date;
-  updatedAt: Date;
-
-  followerCount: number;
-  followingCount: number;
-  postCount: number;
 }
 
 export interface UserShort {
@@ -27,6 +17,9 @@ export interface UserShort {
   fullName: string;
   avatarUrl?: string;
   bio?: string;
+  isPrivate?: boolean;
+  followers?: Types.ObjectId[];
+  following?: UserShort[];
 }
 
 export interface UserProfileData {

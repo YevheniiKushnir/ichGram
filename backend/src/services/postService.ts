@@ -1,4 +1,4 @@
-import { Post, IPost } from "../models/Post";
+import { Post } from "../models/Post";
 import { User } from "../models/User";
 import { Types } from "mongoose";
 import {
@@ -6,11 +6,28 @@ import {
   CreatePostData,
   UpdatePostData,
   ReqIdsParams,
+  PopulatedPost,
 } from "../types/post";
 import { UserShort } from "../types/user";
 import { AppError } from "../utils/AppError";
 
 export class PostService {
+  static mapPostToResponse = (
+    post: PopulatedPost,
+    userId?: Types.ObjectId
+  ): PostWithAuthor => {
+    return {
+      ...post,
+
+      likeCount: post.likeCount,
+      commentCount: post.commentCount,
+      saveCount: post.saveCount,
+
+      isLiked: userId ? post.likes.some((like) => like.equals(userId)) : false,
+      isSaved: userId ? post.saves.some((save) => save.equals(userId)) : false,
+    };
+  };
+
   static async createPost(
     authorId: Types.ObjectId,
     postData: CreatePostData
@@ -39,14 +56,7 @@ export class PostService {
       throw new AppError("Post not found after creation", 500);
     }
 
-    return {
-      ...populatedPost,
-      _id: populatedPost._id,
-      author: populatedPost.author,
-      likeCount: populatedPost.likeCount,
-      commentCount: populatedPost.commentCount,
-      saveCount: populatedPost.saveCount,
-    };
+    return this.mapPostToResponse(populatedPost);
   }
 
   static async getPostById(
@@ -61,21 +71,14 @@ export class PostService {
       throw new AppError("Post not found", 404);
     }
 
-    const postWithAuthor: PostWithAuthor = {
-      ...post,
-      _id: post._id,
-      author: post.author,
-      likeCount: post.likeCount,
-      commentCount: post.commentCount,
-      saveCount: post.saveCount,
-    };
-
-    if (userId) {
-      postWithAuthor.isLiked = post.likes.some((like) => like.equals(userId));
-      postWithAuthor.isSaved = post.saves.some((save) => save.equals(userId));
+    if (
+      post.author.isPrivate &&
+      (!userId || !post.author.followers?.includes(userId))
+    ) {
+      throw new AppError("Cannot view private post", 403);
     }
 
-    return postWithAuthor;
+    return this.mapPostToResponse(post, userId);
   }
 
   static async getUserPosts(
@@ -90,20 +93,7 @@ export class PostService {
       .skip((page - 1) * limit)
       .limit(limit);
 
-    return posts.map((post) => ({
-      ...post,
-      _id: post._id,
-      author: post.author,
-      likeCount: post.likeCount,
-      commentCount: post.commentCount,
-      saveCount: post.saveCount,
-      isLiked: currentUserId
-        ? post.likes.some((like) => like.equals(currentUserId))
-        : false,
-      isSaved: currentUserId
-        ? post.saves.some((save) => save.equals(currentUserId))
-        : false,
-    }));
+    return posts.map((post) => this.mapPostToResponse(post, currentUserId));
   }
 
   static async likePost({ postId, userId }: ReqIdsParams): Promise<void> {
@@ -130,6 +120,20 @@ export class PostService {
     });
   }
 
+  static async deletePost({ postId, userId }: ReqIdsParams): Promise<void> {
+    const result = await Post.findOneAndDelete({
+      _id: postId,
+      author: userId,
+    });
+
+    if (!result) {
+      throw new AppError("Post not found", 404);
+    }
+    await User.findByIdAndUpdate(userId, {
+      $pull: { posts: postId },
+    });
+  }
+
   static async updatePost(
     postId: Types.ObjectId,
     userId: Types.ObjectId,
@@ -152,28 +156,7 @@ export class PostService {
       throw new AppError("Post not found", 404);
     }
 
-    return {
-      ...post,
-      _id: post._id,
-      author: post.author,
-      likeCount: post.likeCount,
-      commentCount: post.commentCount,
-      saveCount: post.saveCount,
-    };
-  }
-
-  static async deletePost({ postId, userId }: ReqIdsParams): Promise<void> {
-    const result = await Post.findOneAndDelete({
-      _id: postId,
-      author: userId,
-    });
-
-    if (!result) {
-      throw new AppError("Post not found", 404);
-    }
-    await User.findByIdAndUpdate(userId, {
-      $pull: { posts: postId },
-    });
+    return this.mapPostToResponse(post, userId);
   }
 
   static async explorePosts(
@@ -181,21 +164,26 @@ export class PostService {
     limit: number = 10,
     userId?: Types.ObjectId
   ): Promise<PostWithAuthor[]> {
-    const posts = await Post.find()
-      .populate<{ author: UserShort }>("author", "username fullName avatarUrl")
-      .sort({ createdAt: -1 })
+    // Recommendation algorithm
+    let query = Post.find();
+
+    // If there is a user, we show posts not from their subscriptions.
+    if (userId) {
+      const user = await User.findById(userId);
+      if (user) {
+        query = query.where("author").nin([userId, ...user.following]);
+      }
+    }
+
+    const posts = await query
+      .populate<{ author: UserShort }>(
+        "author",
+        "username fullName avatarUrl isPrivate followers"
+      )
+      .sort({ likes: -1, createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit);
 
-    return posts.map((post) => ({
-      ...post,
-      _id: post._id,
-      author: post.author,
-      likeCount: post.likeCount,
-      commentCount: post.commentCount,
-      saveCount: post.saveCount,
-      isLiked: userId ? post.likes.some((like) => like.equals(userId)) : false,
-      isSaved: userId ? post.saves.some((save) => save.equals(userId)) : false,
-    }));
+    return posts.map((post) => this.mapPostToResponse(post, userId));
   }
 }

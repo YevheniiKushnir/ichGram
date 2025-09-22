@@ -15,6 +15,7 @@ import transformResponse from "./middleware/transformResponse";
 import uploadRoutes from "./routes/uploadRoutes";
 import authRoutes from "./routes/authRoutes";
 import userRoutes from "./routes/userRoutes";
+import commentRoutes from './routes/commentRoutes'
 import postRoutes from "./routes/postRoutes";
 
 const app = express();
@@ -27,6 +28,7 @@ app.use(transformResponse);
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/posts", postRoutes);
+app.use("/api/comment", commentRoutes);
 
 app.use("/api/upload", uploadRoutes);
 

@@ -7,51 +7,59 @@ import {
   UserProfileData,
   FollowAction,
   UserFeedParams,
+  PopulatedUser,
 } from "../types/user";
 import { PostWithAuthor } from "../types/post";
 import { AppError } from "../utils/AppError";
+import { PostService } from "./postService";
 
 export class UserService {
+  private static mapUserToShort = (user: IUser): UserShort => ({
+    _id: user._id,
+    username: user.username,
+    fullName: user.fullName,
+    avatarUrl: user.avatarUrl,
+    bio: user.bio,
+    isPrivate: user.isPrivate,
+  });
+
+  private static mapUserToProfile = (
+    user: PopulatedUser,
+    requestedById?: Types.ObjectId
+  ): UserProfile => {
+    const profile: UserProfile = {
+      ...user,
+      isFollowing: requestedById
+        ? user.followers.some((follower) => follower._id.equals(requestedById))
+        : undefined,
+    };
+
+    return profile;
+  };
+
   static async getProfile(
     userId: Types.ObjectId,
     requestedById?: Types.ObjectId
   ): Promise<UserProfile> {
     const user = await User.findById(userId)
       .select("-password")
-      .populate<{ followers: UserShort[]; following: UserShort[] }>([
-        { path: "followers", select: "username fullName avatarUrl bio" },
-        { path: "following", select: "username fullName avatarUrl bio" },
+      .populate<PopulatedUser>([
+        {
+          path: "followers",
+          select: "username fullName avatarUrl bio",
+          match: requestedById ? { _id: requestedById } : {},
+        },
+        {
+          path: "following",
+          select: "username fullName avatarUrl bio",
+        },
       ]);
 
     if (!user) {
       throw new AppError("User not found", 404);
     }
 
-    const profile: UserProfile = {
-      _id: user._id,
-      username: user.username,
-      fullName: user.fullName,
-      email: user.email,
-      avatarUrl: user.avatarUrl,
-      bio: user.bio,
-      website: user.website,
-      isPrivate: user.isPrivate,
-      followerCount: user.followerCount,
-      followingCount: user.followingCount,
-      postCount: user.postCount,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-    };
-
-    // add isFollowind
-    if (requestedById) {
-      const isFollowing = user.followers.some((follower: UserShort) =>
-        follower._id.equals(requestedById)
-      );
-      profile.isFollowing = isFollowing;
-    }
-
-    return profile;
+    return this.mapUserToProfile(user, requestedById);
   }
 
   static async searchUsers(
@@ -60,20 +68,14 @@ export class UserService {
   ): Promise<UserShort[]> {
     const users = await User.find({
       $or: [
-        { username: { $regex: `.*${query}.*`, $options: "i" } },
-        { fullName: { $regex: `.*${query}.*`, $options: "i" } },
+        { username: { $regex: query, $options: "i" } },
+        { fullName: { $regex: query, $options: "i" } },
       ],
     })
-      .select("username fullName avatarUrl bio followers")
+      .select("username fullName avatarUrl bio isPrivate")
       .limit(limit);
 
-    return users.map((user) => ({
-      _id: user._id,
-      username: user.username,
-      fullName: user.fullName,
-      avatarUrl: user.avatarUrl,
-      bio: user.bio,
-    }));
+    return users.map((user) => this.mapUserToShort(user));
   }
 
   static async followUser({
@@ -119,6 +121,7 @@ export class UserService {
     if (!follower || !following) {
       throw new AppError("User not found", 404);
     }
+
     follower.following = follower.following.filter(
       (id) => !id.equals(followingId)
     );
@@ -135,28 +138,17 @@ export class UserService {
     page = 1,
     limit = 20,
   }: UserFeedParams): Promise<UserShort[]> {
-    const user = await User.findById(userId).populate<{
-      followers: UserShort[];
-    }>({
-      path: "followers",
-      select: "username fullName avatarUrl bio",
-      options: {
-        skip: (page - 1) * limit,
-        limit: limit,
-      },
-    });
-
+    const user = await User.findById(userId);
     if (!user) {
       throw new AppError("User not found", 404);
     }
 
-    return user.followers.map((follower) => ({
-      _id: follower._id,
-      username: follower.username,
-      fullName: follower.fullName,
-      avatarUrl: follower.avatarUrl,
-      bio: follower.bio,
-    }));
+    const followers = await User.find({ _id: { $in: user.followers } })
+      .select("username fullName avatarUrl bio isPrivate")
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    return followers.map((follower) => this.mapUserToShort(follower));
   }
 
   static async getFollowing({
@@ -164,28 +156,17 @@ export class UserService {
     page = 1,
     limit = 20,
   }: UserFeedParams): Promise<UserShort[]> {
-    const user = await User.findById(userId).populate<{
-      following: UserShort[];
-    }>({
-      path: "following",
-      select: "username fullName avatarUrl bio",
-      options: {
-        skip: (page - 1) * limit,
-        limit: limit,
-      },
-    });
-
+    const user = await User.findById(userId);
     if (!user) {
       throw new AppError("User not found", 404);
     }
 
-    return user.following.map((following: UserShort) => ({
-      _id: following._id,
-      username: following.username,
-      fullName: following.fullName,
-      avatarUrl: following.avatarUrl,
-      bio: following.bio,
-    }));
+    const following = await User.find({ _id: { $in: user.following } })
+      .select("username fullName avatarUrl bio isPrivate")
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    return following.map((user) => this.mapUserToShort(user));
   }
 
   static async updateProfile(
@@ -193,66 +174,41 @@ export class UserService {
     updateData: UserProfileData
   ): Promise<UserProfile> {
     const { fullName, bio, website, avatarUrl, isPrivate } = updateData;
+
     const user = await User.findByIdAndUpdate(
       userId,
       { fullName, bio, website, avatarUrl, isPrivate },
       { new: true, runValidators: true }
-    ).select("-password");
+    )
+      .select("-password")
+      .populate<PopulatedUser>([
+        { path: "followers", select: "username fullName avatarUrl bio" },
+        { path: "following", select: "username fullName avatarUrl bio" },
+      ]);
 
     if (!user) {
       throw new AppError("User not found", 404);
     }
 
-    return {
-      _id: user._id,
-      username: user.username,
-      fullName: user.fullName,
-      email: user.email,
-      avatarUrl: user.avatarUrl,
-      bio: user.bio,
-      website: user.website,
-      isPrivate: user.isPrivate,
-      followerCount: user.followerCount,
-      followingCount: user.followingCount,
-      postCount: user.postCount,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-    };
+    return this.mapUserToProfile(user);
   }
 
-  // Feed = posts from following users
   static async getFeed({
     userId,
     page = 1,
     limit = 10,
   }: UserFeedParams): Promise<PostWithAuthor[]> {
-    const user = await User.findById(userId).populate<{
-      following: UserShort[];
-    }>("following");
-
+    const user = await User.findById(userId);
     if (!user) {
       throw new AppError("User not found", 404);
     }
 
-    const followingIds = user.following.map((f) => f._id);
-
-    const posts = await Post.find({ author: { $in: followingIds } })
+    const posts = await Post.find({ author: { $in: user.following } })
       .populate<{ author: UserShort }>("author", "username fullName avatarUrl")
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit);
 
-    return posts.map((post) => {
-      return {
-        ...post,
-        _id: post._id,
-        author: post.author,
-        likeCount: post.likeCount,
-        commentCount: post.commentCount,
-        saveCount: post.saveCount,
-        isLiked: post.likes.some((like) => like.equals(userId)),
-        isSaved: post.saves.some((save) => save.equals(userId)),
-      };
-    });
+    return posts.map((post) => PostService.mapPostToResponse(post, userId));
   }
 }
