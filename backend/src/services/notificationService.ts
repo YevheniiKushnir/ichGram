@@ -22,6 +22,7 @@ export class NotificationService {
     { path: "post", select: "images" },
     { path: "comment", select: "text" },
     { path: "message", select: "text" },
+    { path: "chat", select: "participants" },
   ];
 
   static async createNotification(

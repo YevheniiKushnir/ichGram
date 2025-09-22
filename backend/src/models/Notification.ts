@@ -8,6 +8,7 @@ export interface INotification extends Document {
   post?: Types.ObjectId;
   comment?: Types.ObjectId;
   message?: Types.ObjectId;
+  chat?: Types.ObjectId;
   isRead: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -27,7 +28,7 @@ const notificationSchema = new Schema<INotification>(
     },
     type: {
       type: String,
-      enum: ["like", "comment", "follow", "mention", "message"],
+      enum: ["like", "comment", "follow", "mention", "message", "reply"],
       required: true,
     },
     post: {
@@ -41,6 +42,10 @@ const notificationSchema = new Schema<INotification>(
     message: {
       type: Schema.Types.ObjectId,
       ref: "Message",
+    },
+    chat: {
+      type: Schema.Types.ObjectId,
+      ref: "Chat", 
     },
     isRead: {
       type: Boolean,

@@ -3,7 +3,7 @@ import { env } from "./env";
 
 export const configureCors = (): CorsOptions => {
   const clientHost =
-    env.NODE_ENV === "development" ? "http://localhost:5173" : env.CLIENT_HOST;
+    env.NODE_ENV === "development" ? env.FRONTEND_URL : env.CLIENT_HOST;
 
   if (!clientHost) {
     throw new Error(

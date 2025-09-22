@@ -114,24 +114,8 @@ const userSchema = new Schema<IUser>(
   }
 );
 
-userSchema.index({ username: 1 });
 userSchema.index({ fullName: 1 });
-userSchema.index({ email: 1 });
 userSchema.index({ createdAt: -1 });
-userSchema.index(
-  { username: 1 },
-  {
-    unique: true,
-    collation: { locale: "en", strength: 2 },
-  }
-);
-userSchema.index(
-  { email: 1 },
-  {
-    unique: true,
-    collation: { locale: "en", strength: 2 },
-  }
-);
 
 userSchema.virtual("followerCount").get(function () {
   return this.followers.length;

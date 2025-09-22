@@ -13,13 +13,14 @@ export type NotificationType =
 export interface PopulatedNotification
   extends Omit<
     INotification,
-    "sender" | "recipient" | "post" | "comment" | "message"
+    "sender" | "recipient" | "post" | "comment" | "message" | "chat"
   > {
   sender: UserShort;
   recipient: UserShort;
   post?: { _id: Types.ObjectId; image?: string };
   comment?: { _id: Types.ObjectId; text: string };
   message?: { _id: Types.ObjectId; text?: string };
+  chat?: { _id: Types.ObjectId; participants?: UserShort[] };
 }
 
 export interface NotificationWithSender extends PopulatedNotification {
@@ -33,6 +34,7 @@ export interface CreateNotificationData {
   postId?: Types.ObjectId;
   commentId?: Types.ObjectId;
   messageId?: Types.ObjectId;
+  chatId?: Types.ObjectId;
 }
 
 export interface NotificationQueryParams {
