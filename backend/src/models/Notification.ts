@@ -4,7 +4,7 @@ export interface INotification extends Document {
   _id: Types.ObjectId;
   recipient: Types.ObjectId;
   sender: Types.ObjectId;
-  type: "like" | "comment" | "follow" | "mention" | "message";
+  type: "like" | "comment" | "follow" | "mention" | "message" | "reply";
   post?: Types.ObjectId;
   comment?: Types.ObjectId;
   message?: Types.ObjectId;

@@ -1,4 +1,4 @@
-import { Comment, IComment } from "../models/Comment";
+import { Comment } from "../models/Comment";
 import { Post } from "../models/Post";
 import { Types } from "mongoose";
 import { AppError } from "../utils/AppError";
@@ -7,6 +7,7 @@ import {
   CreateCommentData,
   PopulatedComment,
 } from "../types/comment";
+import { NotificationService } from "./notificationService";
 
 export class CommentService {
   private static mapCommentToResponse = (
@@ -50,10 +51,35 @@ export class CommentService {
     await Post.findByIdAndUpdate(postId, {
       $push: { comments: comment._id },
     });
+    //  INTEGRATION: Notification for the author of the post (if it is not the author themselves)
+    if (!post.author.equals(authorId)) {
+      await NotificationService.createNotification({
+        recipientId: post.author,
+        senderId: authorId,
+        type: "comment",
+        postId: postId,
+        commentId: comment._id,
+      });
+    }
+    // INTEGRATION: If this is a reply to a comment, notify the author of the parent comment.
+    if (parentCommentId) {
+      const parentComment = await Comment.findById(parentCommentId).populate(
+        "author"
+      );
+      if (parentComment && !parentComment.author._id.equals(authorId)) {
+        await NotificationService.createNotification({
+          recipientId: parentComment.author._id,
+          senderId: authorId,
+          type: "reply",
+          postId: postId,
+          commentId: comment._id,
+        });
+      }
+    }
 
-    const populatedComment = await Comment.findById(comment._id)
-      .populate<PopulatedComment>("author", "username fullName avatarUrl")
-      .exec();
+    const populatedComment = await Comment.findById(
+      comment._id
+    ).populate<PopulatedComment>("author", "username fullName avatarUrl");
 
     if (!populatedComment) {
       throw new AppError("Comment not found after creation", 500);
@@ -113,6 +139,16 @@ export class CommentService {
     await Comment.findByIdAndUpdate(commentId, {
       $addToSet: { likes: userId },
     });
+    //  INTEGRATION: Notification for the author of the comment (if not the author themselves)
+    if (!comment.author._id.equals(userId)) {
+      await NotificationService.createNotification({
+        recipientId: comment.author._id,
+        senderId: userId,
+        type: "like",
+        commentId: commentId,
+        postId: comment.post,
+      });
+    }
   }
 
   static async unlikeComment(

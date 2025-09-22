@@ -10,6 +10,7 @@ import {
 } from "../types/post";
 import { UserShort } from "../types/user";
 import { AppError } from "../utils/AppError";
+import { NotificationService } from "./notificationService";
 
 export class PostService {
   static mapPostToResponse = (
@@ -63,9 +64,10 @@ export class PostService {
     postId: Types.ObjectId,
     userId?: Types.ObjectId
   ): Promise<PostWithAuthor> {
-    const post = await Post.findById(postId)
-      .populate<{ author: UserShort }>("author", "username fullName avatarUrl")
-      .exec();
+    const post = await Post.findById(postId).populate<{ author: UserShort }>(
+      "author",
+      "username fullName avatarUrl"
+    );
 
     if (!post) {
       throw new AppError("Post not found", 404);
@@ -97,12 +99,41 @@ export class PostService {
   }
 
   static async likePost({ postId, userId }: ReqIdsParams): Promise<void> {
+    const post = await Post.findById(postId);
+    if (!post) {
+      throw new AppError("Post not found", 404);
+    }
+
+    const isAlreadyLiked = post.likes.some((like) => like.equals(userId));
+    if (isAlreadyLiked) {
+      throw new AppError("Post already liked", 400);
+    }
+
     await Post.findByIdAndUpdate(postId, {
       $addToSet: { likes: userId },
     });
+    // INTEGRATION: Notification for the author of the post (if it is not the author themselves)
+    if (!post.author.equals(userId)) {
+      await NotificationService.createNotification({
+        recipientId: post.author,
+        senderId: userId,
+        type: "like",
+        postId: postId,
+      });
+    }
   }
 
   static async unlikePost({ postId, userId }: ReqIdsParams): Promise<void> {
+    const post = await Post.findById(postId);
+    if (!post) {
+      throw new AppError("Post not found", 404);
+    }
+
+    const isLiked = post.likes.some((like) => like.equals(userId));
+    if (!isLiked) {
+      throw new AppError("Post not liked", 400);
+    }
+
     await Post.findByIdAndUpdate(postId, {
       $pull: { likes: userId },
     });

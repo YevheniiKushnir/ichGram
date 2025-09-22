@@ -12,6 +12,7 @@ import {
 import { PostWithAuthor } from "../types/post";
 import { AppError } from "../utils/AppError";
 import { PostService } from "./postService";
+import { NotificationService } from "./notificationService";
 
 export class UserService {
   private static mapUserToShort = (user: IUser): UserShort => ({
@@ -107,6 +108,12 @@ export class UserService {
     following.followers.push(followerId);
 
     await Promise.all([follower.save(), following.save()]);
+    //  INTEGRATION: Notification of new subscription
+    await NotificationService.createNotification({
+      recipientId: followingId,
+      senderId: followerId,
+      type: "follow",
+    });
   }
 
   static async unfollowUser({
